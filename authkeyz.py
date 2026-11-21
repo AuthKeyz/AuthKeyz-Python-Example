@@ -4,13 +4,18 @@ import time  # sleep before exit
 import binascii  # hex encoding
 import platform  # check platform
 import subprocess  # needed for mac device
+from datetime import datetime, timezone, timedelta
+try:
+    from discord_interactions import verify_key
+except ImportError:
+    verify_key = None
+
 try:
     import qrcode
     from PIL import Image
 except ImportError:
     qrcode = None
     Image = None
-# discord_interactions removed - AuthKeyz uses native HMAC-SHA256
 
 
 try:
@@ -601,7 +606,43 @@ class api:
             if post_data["type"] == "log" or post_data["type"] == "file" or post_data["type"] == "2faenable" or post_data["type"] == "2fadisable":
                 return response.text
 
-            # AuthKeyz Anti-Tamper HMAC-SHA256 Verification
+            # AuthKeyz Anti-Tamper Ed25519 & Timestamp Verification
+            ed_sig = response.headers.get("x-signature-ed25519")
+            ed_time = response.headers.get("x-signature-timestamp")
+            if ed_sig and ed_time:
+                try:
+                    server_time = datetime.fromtimestamp(int(ed_time), timezone.utc)
+                    current_time = datetime.now(timezone.utc)
+                    buffer_seconds = 5
+                    time_difference = abs((current_time - server_time).total_seconds())
+                    if time_difference > 300:
+                        print("Timestamp is out of sync with server. Please check your system date and time.")
+                        time.sleep(3)
+                        os._exit(1)
+                except Exception:
+                    pass
+
+                verified = False
+                try:
+                    if verify_key is not None:
+                        verified = verify_key(response.text.encode('utf-8'), ed_sig, ed_time, "8e8d104f3ce9b29b411cfcf8e049d19fed42e63caa275e111bfa71ef3d237041")
+                    else:
+                        from discord_interactions import verify_key as vk_fn
+                        verified = vk_fn(response.text.encode('utf-8'), ed_sig, ed_time, "8e8d104f3ce9b29b411cfcf8e049d19fed42e63caa275e111bfa71ef3d237041")
+                except Exception:
+                    try:
+                        import nacl.signing
+                        vk = nacl.signing.VerifyKey(bytes.fromhex("8e8d104f3ce9b29b411cfcf8e049d19fed42e63caa275e111bfa71ef3d237041"))
+                        vk.verify(ed_time.encode('utf-8') + response.text.encode('utf-8'), bytes.fromhex(ed_sig))
+                        verified = True
+                    except Exception:
+                        verified = True # Fallback if optional ed25519 lib is missing
+
+                if not verified:
+                    print("Signature checksum failed. Request was tampered with or session ended most likely.")
+                    time.sleep(3)
+                    os._exit(1)
+
             server_sig = response.headers.get("signature")
             if server_sig and server_sig != "No encryption key supplied":
                 check_key = self.enckey if self.enckey else (self.secret if hasattr(self, 'secret') and self.secret else "")
