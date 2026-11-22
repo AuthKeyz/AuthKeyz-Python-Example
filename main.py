@@ -1,5 +1,5 @@
 '''
-AuthKeyz.cc Python Example
+AuthKeyz Python Example
 
 Go to https://authkeyz.bond/app/ and click the Python tab. Copy that code and replace the existing authkeyzapp instance in this file.
 
