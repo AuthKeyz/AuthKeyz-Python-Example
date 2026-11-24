@@ -79,7 +79,7 @@ class api:
 
         response = self.__do_request(post_data)
 
-        if response in ["AuthKeyz_Invalid"]:
+        if response in ["AuthKeyz_Invalid", "KeyAuth_Invalid"]:
             print("The application doesn't exist")
             os._exit(1)
 

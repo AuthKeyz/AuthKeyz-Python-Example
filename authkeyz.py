@@ -1,10 +1,29 @@
 import os
+import socket
+from urllib.parse import urlparse
 import json as jsond  # json
 import time  # sleep before exit
 import binascii  # hex encoding
 import platform  # check platform
 import subprocess  # needed for mac device
 from datetime import datetime, timezone, timedelta
+
+_seen_signatures = set()
+
+def _check_host_spoofing(url):
+    try:
+        hostname = urlparse(url).hostname
+        if not hostname:
+            return
+        addrs = socket.getaddrinfo(hostname, None)
+        for _, _, _, _, sockaddr in addrs:
+            ip = str(sockaddr[0])
+            if ip.startswith("127.") or ip == "::1" or ip.startswith("10.") or ip.startswith("192.168.") or (ip.startswith("172.") and 16 <= int(ip.split(".")[1]) <= 31):
+                print("Hosts file or local loopback redirection detected.")
+                time.sleep(3)
+                os._exit(1)
+    except Exception:
+        pass
 try:
     from discord_interactions import verify_key
 except ImportError:
@@ -72,7 +91,7 @@ class api:
 
         response = self.__do_request(post_data)
 
-        if response in ["AuthKeyz_Invalid"]:
+        if response in ["AuthKeyz_Invalid", "KeyAuth_Invalid"]:
             print("The application doesn't exist")
             time.sleep(3)
             os._exit(1)
@@ -599,6 +618,7 @@ class api:
             
     def __do_request(self, post_data):
         try:
+            _check_host_spoofing("https://authkeyz.bond/api/1.3/")
             response = requests.post(
                 "https://authkeyz.bond/api/1.3/", data=post_data, timeout=10
             )
@@ -610,6 +630,12 @@ class api:
             ed_sig = response.headers.get("x-signature-ed25519")
             ed_time = response.headers.get("x-signature-timestamp")
             if ed_sig and ed_time:
+                sig_fingerprint = f"{ed_time}:{ed_sig.lower()}"
+                if sig_fingerprint in _seen_signatures:
+                    print("Replay attack detected: duplicate signature rejected.")
+                    time.sleep(3)
+                    os._exit(1)
+
                 try:
                     server_time = datetime.fromtimestamp(int(ed_time), timezone.utc)
                     current_time = datetime.now(timezone.utc)
@@ -642,6 +668,8 @@ class api:
                     print("Signature checksum failed. Request was tampered with or session ended most likely.")
                     time.sleep(3)
                     os._exit(1)
+
+                _seen_signatures.add(sig_fingerprint)
 
             server_sig = response.headers.get("signature")
             if server_sig and server_sig != "No encryption key supplied":
