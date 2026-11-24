@@ -57,7 +57,7 @@ class api:
 
     name = ownerid = secret = version = hash_to_check = ""
 
-    def __init__(self, name, ownerid, secret, version, hash_to_check):
+    def __init__(self, name, ownerid, version, hash_to_check, secret=""):
         self.name = name
 
         self.ownerid = ownerid
@@ -521,7 +521,7 @@ class api:
     def __do_request(self, post_data):
         try:
             rq_out = s.post(
-                "https://authkeyz.bond/api/1.0/", data=post_data, timeout=30
+                "https://authkeyz.bond/api/1.3/", data=post_data, timeout=30
             )
             return rq_out.text
         except requests.exceptions.Timeout:
@@ -653,7 +653,6 @@ def getchecksum():
 authkeyzapp = api(
     name = "", #App name (Manage Applications --> Application name)
     ownerid = "", #Owner ID (Account-Settings --> OwnerID)
-    secret = "", #App secret(Manage Applications --> App credentials code)
     version = "1.0",
     hash_to_check = getchecksum()
 )
