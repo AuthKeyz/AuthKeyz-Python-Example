@@ -49,7 +49,6 @@ def getchecksum():
 authkeyzapp = api(
     name = "", # App name 
     ownerid = "", # Account ID
-    secret = "", # App secret (copy from https://authkeyz.bond/app/)
     version = "1.0", # Application version
     hash_to_check = getchecksum()
 )
